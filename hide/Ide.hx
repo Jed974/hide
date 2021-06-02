@@ -846,7 +846,6 @@ class Ide {
 			var c = isWindows ? "\\" : "/";
 			path = pathArray.join(c);
 		}
-
 		var e = new Element('<input type="file" style="visibility:hidden" value="" nwworkingdir="$path" accept="${[for( e in exts ) "."+e].join(",")}"/>');
 		e.change(function(_) {
 			var file = e.val();
