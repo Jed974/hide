@@ -742,6 +742,102 @@ class MeshSpray extends Object3D {
 
 	}
 
+	function createInteractiveBrush(ectx : EditContext) {
+		var ctx = ectx.getContext(this);
+		var s2d = @:privateAccess ctx.local2d.getScene();
+		interactive = new h2d.Interactive(10000, 10000, s2d);
+		interactive.propagateEvents = true;
+		interactive.cancelEvents = false;
+
+		interactive.onWheel = function(e) {
+
+		};
+
+		interactive.onKeyUp = function(e) {
+			if (e.keyCode == hxd.Key.R) {
+				lastMeshId = -1;
+				if (lastSpray < Date.now().getTime() - 100) {
+					if( !K.isDown( K.SHIFT) ) {
+						if (previewModels.length > 0) {
+							sceneEditor.deleteElements(previewModels, () -> { }, false);
+							previewModels = [];
+						}
+						var worldPos = ectx.screenToGround(s2d.mouseX, s2d.mouseY);
+						previewMeshesAround(ectx, ctx, worldPos);
+					}
+					lastSpray = Date.now().getTime();
+				}
+			}
+		}
+
+		interactive.onPush = function(e) {
+			e.propagate = false;
+			sprayEnable = true;
+			var worldPos = ectx.screenToGround(s2d.mouseX, s2d.mouseY);
+			if( K.isDown( K.SHIFT) )
+				removeMeshesAround(ctx, worldPos);
+			else {
+				addMeshes(ctx);
+			}
+		};
+
+		interactive.onRelease = function(e) {
+			e.propagate = false;
+			sprayEnable = false;
+			var addedModels = sprayedModels.copy();
+			if (sprayedModels.length > 0) {
+				undo.change(Custom(function(undo) {
+					if(undo) {
+						sceneEditor.deleteElements(addedModels, () -> removeInteractiveBrush(), true, false);
+					}
+					else {
+						sceneEditor.addElements(addedModels, false, true, true);
+					}
+				}));
+				sprayedModels = [];
+			}
+			
+
+			if (previewModels.length > 0) {
+				sceneEditor.deleteElements(previewModels, () -> { }, false);
+				previewModels = [];
+			}
+		};
+
+		interactive.onMove = function(e) {
+			var worldPos = ectx.screenToGround(s2d.mouseX, s2d.mouseY);
+
+			var shiftPressed = K.isDown( K.SHIFT);
+
+			drawCircle(ctx, worldPos.x, worldPos.y, worldPos.z, (shiftPressed) ? currentConfig.deleteRadius : currentConfig.radius, 5, (shiftPressed) ? 9830400 : 38400);
+
+			if (lastSpray < Date.now().getTime() - 100) {
+				if (previewModels.length > 0) {
+					sceneEditor.deleteElements(previewModels, () -> { }, false, false);
+					previewModels = [];
+				}
+				if( !shiftPressed ) {
+					previewMeshesAround(ectx, ctx, worldPos);
+				}
+
+				if( K.isDown( K.MOUSE_LEFT) ) {
+					e.propagate = false;
+
+					if (sprayEnable) {
+						if( shiftPressed ) {
+							removeMeshesAround(ctx, worldPos);
+						} else {
+							if (currentConfig.density == 1) sprayEnable = false;
+							else addMeshes(ctx);
+						}
+					}
+				}
+				lastSpray = Date.now().getTime();
+			}
+		};
+
+	}
+
 	function updateConfig() {
 		var CONFIG = currentConfig;
 		var defaultConfig = getDefaultConfig();
@@ -1073,6 +1169,19 @@ class MeshSpray extends Object3D {
 	}
 
 	static var _ = Library.register("meshSpray", MeshSpray);
+
+	override function flatten<T:Prefab>( ?cl : Class<T>, ?arr: Array<T> ) : Array<T> {
+		if(arr == null)
+			arr = [];
+		if( cl == null )
+			arr.push(cast this);
+		else {
+			var i = to(cl);
+			if(i != null)
+				arr.push(i);
+		}
+		return arr;
+	}
 
 }
 
