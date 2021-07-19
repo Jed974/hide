@@ -247,7 +247,8 @@ class Prefab extends FileView {
 		currentVersion = undo.currentID;
 
 		sceneEditor = new PrefabSceneEditor(this, data);
-		element.find(".hide-scenetree").first().append(sceneEditor.tree.element);
+		var sceneTree = element.find(".hide-scenetree").first();
+		sceneTree.append(sceneEditor.tree.element);
 		element.find(".hide-scroll").first().append(properties.element);
 		element.find(".heaps-scene").first().append(scene.element);
 
@@ -280,12 +281,24 @@ class Prefab extends FileView {
 		refreshGraphicsFilters();
 	}
 
+	function setColumnWidth(newWidth : Int) {
+		var config = ide.ideConfig;
+		var treeColumn = element.find(".tree-column").first();
+		var sceneTree = element.find(".hide-scenetree").first();
+		var clampedWidth = hxd.Math.iclamp(newWidth, Std.parseInt(sceneTree.css("min-width")) + 2*Std.parseInt(sceneTree.css("border")), Std.parseInt(sceneTree.css("max-width")) + 2*Std.parseInt(sceneTree.css("border")));
+		treeColumn.width(clampedWidth);
+		if (newWidth != clampedWidth) hxd.System.setCursor(Move);
+		config.sceneEditorLayout.treeWidth = newWidth;
+	}
+
 	function refreshColLayout() {
 		var config = ide.ideConfig;
+		var sceneTree = element.find(".hide-scenetree").first();
 		if( config.sceneEditorLayout == null ) {
 			config.sceneEditorLayout = {
 				colsVisible: true,
 				colsCombined: false,
+				treeWidth: Std.parseInt(sceneTree.css("min-width"))
 			};
 		}
 		setCombine(config.sceneEditorLayout.colsCombined);
