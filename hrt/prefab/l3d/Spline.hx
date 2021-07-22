@@ -328,6 +328,7 @@ class Spline extends Object3D {
 				if(tangent != null)
 					tangent.lerp(data.samples[s1].tangent, data.samples[s2].tangent, t);
 			}
+
 		}
 		return pos;
 	}
