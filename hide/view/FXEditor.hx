@@ -321,7 +321,6 @@ class FXEditor extends FileView {
 				<div class="scene-partition" style="display: flex; flex-direction: row; flex: 1; overflow: hidden;">
 					<div style="display: flex; flex-direction: column; flex: 1; overflow: hidden;">
 						<div class="flex heaps-scene"></div>
-						<div class="lm_splitter lm_vertical" style="height: 5px;"><div class="lm_drag_handle"></div></div>
 						<div class="fx-animpanel">
 							<div class="top-bar">
 								<div class="timeline">
@@ -361,8 +360,7 @@ class FXEditor extends FileView {
 		tools = new hide.comp.Toolbar(null,element.find(".tools-buttons"));
 		tabs = new hide.comp.Tabs(null,element.find(".tabs"));
 		sceneEditor = new FXSceneEditor(this, data);
-		var sceneTree = element.find(".hide-scenetree").first();
-		sceneTree.append(sceneEditor.tree.element);
+		element.find(".hide-scenetree").first().append(sceneEditor.tree.element);
 		element.find(".hide-scroll").first().append(sceneEditor.properties.element);
 		element.find(".heaps-scene").first().append(sceneEditor.scene.element);
 
