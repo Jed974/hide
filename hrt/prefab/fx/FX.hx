@@ -362,6 +362,24 @@ class FXAnimation extends h3d.scene.Object {
 }
 
 class FX extends BaseFX {
+	@:s public var vars : Array<{ name : String, defValue : Float }> = [];
+	public var values : Map<String, Float> = new Map();
+
+	var prefabCache : Map<String, { r : Prefab }> = new Map();
+	var particlesCache : Map<String, { v : h3d.scene.Object }> = new Map();
+
+	// #if hscript
+	// public var interp : hrt.prefab.rfx.Configurator.ConfiguratorInterp;
+	// public var parsedExpr : hscript.Expr;
+	// #end
+	#if editor
+	public var errorTarget : hide.Element;
+	#end
+	var rootPrefab : Prefab;
+
+	public var scriptEditor : hide.comp.ScriptEditor;
+	public var scriptParser : hrt.prefab.fx.FXScriptParser;
+
 
 	public function new() {
 		super();
@@ -381,6 +399,29 @@ class FX extends BaseFX {
 		if(obj.cullingRadius != null)
 			cullingRadius = obj.cullingRadius;
 		scriptCode = obj.scriptCode;
+	}
+
+	function resetCache() {
+		prefabCache = [];
+		particlesCache = [];
+	}
+
+	override function makeInstance(ctx:Context):Context {
+		for( v in vars )
+			values.set(v.name, v.defValue);
+		rootPrefab = this;
+		var shared = ctx.shared;
+		while( shared.parent != null ) {
+			rootPrefab = shared.parent.prefab;
+			shared = shared.parent.shared;
+		}
+		while( rootPrefab.parent != null )
+			rootPrefab = rootPrefab.parent;
+		resetCache();
+		// #if hscript
+		// interp = null;
+		// #end
+		return super.makeInstance(ctx);
 	}
 
 	override function make( ctx : Context ) : Context {
@@ -424,6 +465,43 @@ class FX extends BaseFX {
 		var fxanim = Std.downcast(ctx.local3d, FXAnimation);
 		fxanim.duration = duration;
 		fxanim.cullingRadius = cullingRadius;
+		// #if !hscript
+		// throw "Requires -lib hscript";
+		// #else
+		// var errorMessage = null;
+		// if( parsedExpr == null && scriptCode != null) {
+		// 	var parser = new hscript.Parser();
+		// 	parsedExpr = try parser.parseString(scriptCode) catch( e : hscript.Expr.Error ) { errorMessage = hscript.Printer.errorToString(e); null; };
+		// }
+		// if( interp == null ) {
+		// 	interp = new hrt.prefab.rfx.Configurator.ConfiguratorInterp();
+		// 	interp.variables.set("get", getPrefab.bind(false));
+		// 	// interp.variables.set("getParts", getParts.bind(r));
+		// 	// interp.variables.set("getOpt", getPrefab.bind(true));
+		// 	interp.variables.set("smooth", smoothValue);
+		// 	interp.variables.set("allowChanges", allowChanges);
+		// }
+		for( k => v in values )
+			scriptParser.contextVars.set(k, v);
+		// if( errorMessage == null )
+		// 	try {
+		// 		interp.execute(parsedExpr);
+		// 	} catch( e : Dynamic ) {
+		// 		errorMessage = Std.string(e);
+		// 	}
+		// if( scriptParser.errorMessage != null ) {
+		// 	#if !editor
+		// 	throw scriptParser.errorMessage;
+		// 	#else
+		// 	if( errorTarget != null ) errorTarget.text(scriptParser.errorMessage);
+		// 	#end
+		// } else {
+		// 	#if editor
+		// 	if( errorTarget != null ) errorTarget.html("&nbsp;");
+		// 	#end
+		// }
+		// #end
+		// interp.restoreVars();
 	}
 
 	function createInstance(parent: h3d.scene.Object) : FXAnimation {
@@ -438,17 +516,109 @@ class FX extends BaseFX {
 		fxanim.initObjAnimations(ctx, this);
 	}
 
-	override function edit( ctx : EditContext ) {
+	public function smoothValue( v : Float, easing : Float ) : Float {
+		var bpow = Math.pow(v, 1 + easing);
+		return bpow / (bpow + Math.pow(1 - v, easing + 1));
+	}
+
+	// function getParts( r : Renderer, id : String) {
+	// 	var p = particlesCache.get(id);
+	// 	if (p != null)
+	// 		return p.v;
+	// 	var obj = r.ctx.scene.getObjectByName(id);
+	// 	if ( obj == null)
+	// 		throw "Missing object #"+id;
+	// 	#if !editor
+	// 	particlesCache.set(id, { v : obj });
+	// 	#end
+	// 	return obj;
+	// }
+
+	public function getPrefab( opt : Bool, id : String ) {
+		var p = prefabCache.get(id);
+		if( p != null )
+			return p.r;
+		var p = rootPrefab.getOpt(hrt.prefab.Prefab,id,true);
+		if( p == null ) {
+			if( opt ) return null;
+			throw "Missing prefab #"+id;
+		}
+		#if !editor
+		prefabCache.set(id, { r : p });
+		#end
+		return p;
+	}
+
+	// #if hscript
+	// public function allowChanges( v : Bool ) {
+	// 	interp.allowChanges = v;
+	// }
+	// #end
+
+	override function edit( ectx : EditContext ) {
 		var props = new hide.Element('
 			<div class="group" name="FX Scene">
 				<dl>
 					<dt>Duration</dt><dd><input type="number" value="0" field="duration"/></dd>
 					<dt>Culling radius</dt><dd><input type="number" field="cullingRadius"/></dd>
 				</dl>
-			</div>');
-		ctx.properties.add(props, this, function(pname) {
-			ctx.onChange(this, pname);
+			</div>
+			<div>
+				<div class="group" name="Variables">
+					<dl id="vars">
+					</dl>
+					<dl>
+						<dt></dt>
+						<dd><input type="button" value="Add" id="addvar"/></dd>
+					</dl>
+				</div>
+				<div class="group" name="Script">
+				<div>
+					<div class="error">&nbsp;</div>
+					<div id="script" style="height:200px"></div>
+				</div>
+				</div>
+			</div>
+		');
+
+		errorTarget = props.find(".error");
+		var evars = props.find("#vars");
+		props.find("#addvar").click(function(_) {
+			var name = ectx.ide.ask("Variable name");
+			if( name == null ) return;
+			ectx.makeChanges(this, function() vars.push({ name : name, defValue: 0 }));
+			values.set(name, 0);
+			ectx.rebuildProperties();
 		});
+		ectx.properties.add(props, this, function(pname) {
+			ectx.onChange(this, pname);
+		});
+		for( v in vars ) {
+			var ref = { v : values.get(v.name) };
+			var def = new hide.Element('<div class="variable"><dt>${v.name}</dt><dd><input type="range" min="0" max="1" field="v"/></dd></div>').appendTo(evars);
+			ectx.properties.build(def, ref, function(pname) {
+				values.set(v.name, ref.v);
+				ectx.onChange(this, pname);
+			});
+			def.find("dt").contextmenu(function(e) {
+				new hide.comp.ContextMenu([
+					{ label : "Set Default", click : () -> v.defValue = ref.v },
+					{ label : "Remove", click : () -> {
+						vars.remove(v);
+						values.remove(v.name);
+						//interp.variables.remove(v.name);
+						ectx.rebuildProperties();
+					}},
+				]);
+				return false;
+			});
+		}
+
+		var scriptElem = props.find("#script");
+		scriptEditor = new hide.comp.ScriptEditor(scriptCode, null, scriptElem, scriptElem);
+		if (scriptParser == null)
+			scriptParser = new hrt.prefab.fx.FXScriptParser();
+		scriptCode = scriptEditor.code;
 	}
 
 	override function getHideProps() : HideProps {

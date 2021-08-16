@@ -6,6 +6,8 @@ import hrt.prefab.fx.FXScript;
 class FXScriptParser {
 
 	public var firstParse = false;
+	public var contextVars : Map<String, Float> = new Map();
+	public var errorMessage : String;
 
 	public function new(){
 	}
@@ -33,7 +35,8 @@ class FXScriptParser {
 		parser.allowJSON = true;
 		var expr : hscript.Expr = null;
 		var script = new hrt.prefab.fx.FXScript(fx);
-
+		for (k => v in contextVars)
+			script.myVars.set(k, FXVar.Float(v));
 		function parse( expr : hscript.Expr ) {
 			if( expr == null ) return;
 			switch(getExpr(expr)){
@@ -56,7 +59,9 @@ class FXScriptParser {
 		}
 		try {
 			expr = parser.parseString(s, "");
-		} catch( e : hscript.Expr.Error ) { }
+		} catch( e : hscript.Expr.Error ) {
+			errorMessage = hscript.Printer.errorToString(e);
+		}
 		parse(expr);
 
 		function convert( expr : hscript.Expr ) : FxAst {

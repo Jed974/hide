@@ -240,7 +240,7 @@ class Configurator extends RendererFX {
 		ectx.properties.add(props);
 		for( v in vars ) {
 			var ref = { v : values.get(v.name) };
-			var def = new hide.Element('<div><dt>${v.name}</dt><dd><input type="range" min="0" max="1" field="v"/></dd></div>').appendTo(evars);
+			var def = new hide.Element('<div class="variable"><dt>${v.name}</dt><dd><input type="range" min="0" max="1" field="v"/></dd></div>').appendTo(evars);
 			ectx.properties.build(def, ref, function(_) {
 				values.set(v.name, ref.v);
 			});

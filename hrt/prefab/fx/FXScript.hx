@@ -97,17 +97,24 @@ class FXScript {
 		if( fxRoot != null ) root = fxRoot;
 		#end
 		var curObj : h3d.scene.Object = root.getObjectByName(names[i++]);
-		while(curObj != null && i < p.length) {
+		while(curObj != null && i < names.length) {
 			var next = curObj.getObjectByName(names[i++]);
 			next != null ? curObj = next : break;
 		}
 		if( curObj == null )
 			return (v) -> {};
-		var field : String = "";
-		for( index in i - 1 ... i )
-			field += names[index];
-
-		return switch( field ) {
+		var fields : String = names[i-1];
+		for( index in i ... names.length )
+			fields += "." + names[index];
+		trace("names : " + names);
+		trace("obj : " + curObj);
+		trace("field : " + fields);
+		// var cur = Reflect.field(curObj, fields[0]);
+		// if (Reflect.hasField(cur, "mshader")) {
+		// 	var props = Reflect.field(cur, "mshader");
+		// 	trace("has color : " + Reflect.hasField(props, "color__"));
+		// }
+		return switch( fields ) {
 			case "x": function(v) { curObj.x = v; };
 			case "y": function(v) { curObj.y = v; };
 			case "z": function(v) { curObj.z = v; };
@@ -125,12 +132,12 @@ class FXScript {
 				var euler = curObj.getRotationQuat().toEuler();
 				curObj.setRotation(euler.x, euler.y, v); };
 			default: {
-				if(Reflect.hasField(curObj, field)) {
-					var cur = Reflect.field(curObj, field);
-					if(Std.is(cur, Value))
-						(v) -> Reflect.setProperty(curObj, field, Value.VConst(v));
+				if(Reflect.hasField(curObj, fields)) {
+					var field = Reflect.field(curObj, fields);
+					if(Std.is(field, Value))
+						(v) -> Reflect.setProperty(curObj, fields, Value.VConst(v));
 					else
-						(v) -> Reflect.setProperty(curObj, field, v);
+						(v) -> Reflect.setProperty(curObj, fields, v);
 				}
 				else (v) -> {};
 			};
@@ -172,6 +179,9 @@ class FXScript {
 			case "rand": return hxd.Math.random();
 			case "mix": return hxd.Math.lerp(eval(args[0]), eval(args[1]), eval(args[2]));
 			case "clamp": return hxd.Math.clamp(eval(args[0]), eval(args[1]), eval(args[2]));
+			case "trace":
+				trace(eval(args[0]));
+				return 0.0;
 			default: return 0.0;
 		}
 	}

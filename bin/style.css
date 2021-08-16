@@ -713,6 +713,9 @@ input[type=checkbox]:checked:after {
   text-transform: capitalize;
   cursor: pointer;
 }
+.hide-properties .variable dt {
+  text-transform: none;
+}
 .hide-properties input {
   width: 190px;
 }
@@ -912,8 +915,8 @@ input[type=checkbox]:checked:after {
 }
 /* FX Editor */
 .fx-script {
+  margin-top: 10px;
   height: 500px;
-  width: 500px;
 }
 .fx-scriptParams {
   margin: 10px;

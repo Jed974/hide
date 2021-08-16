@@ -24,6 +24,10 @@ class FXEditContext extends hide.prefab.EditContext {
 		super.onChange(p, propName);
 		parent.onPrefabChange(p, propName);
 	}
+	override function rebuildProperties() {
+		properties.clear();
+		parent.data.edit(this);
+	}
 }
 
 @:access(hide.view.FXEditor)
@@ -276,8 +280,8 @@ class FXEditor extends FileView {
 	var afterPanRefreshes : Array<Bool->Void> = [];
 	var statusText : h2d.Text;
 
-	var scriptEditor : hide.comp.ScriptEditor;
-	var fxScriptParser : hrt.prefab.fx.FXScriptParser;
+	//var scriptEditor : hide.comp.ScriptEditor;
+	//var fxScriptParser : hrt.prefab.fx.FXScriptParser;
 	var cullingPreview : h3d.scene.Sphere;
 
 	override function getDefaultContent() {
@@ -352,10 +356,6 @@ class FXEditor extends FileView {
 						<div class="tab expand" name="Properties" icon="cog">
 							<div class="fx-props"></div>
 						</div>
-						<div class="tab expand" name="Script" icon="cog">
-							<div class="fx-script"></div>
-							<div class="fx-scriptParams"></div>
-						</div>
 					</div>
 				</div>
 			</div>');
@@ -384,30 +384,27 @@ class FXEditor extends FileView {
 		element.find(".collapse-btn").click(function(e) {
 			sceneEditor.collapseTree();
 		});
-		fxprops = new hide.comp.PropsEditor(undo,null,element.find(".fx-props"));
-		{
-			var edit = new FXEditContext(this, sceneEditor.context);
-			edit.properties = fxprops;
-			edit.scene = sceneEditor.scene;
-			edit.cleanups = [];
-			data.edit(edit);
-		}
+		var fxElem = element.find(".fx-props");
+		fxprops = new hide.comp.PropsEditor(undo,null,fxElem);
+		var edit = new FXEditContext(this, sceneEditor.context);
+		edit.properties = fxprops;
+		edit.scene = sceneEditor.scene;
+		edit.cleanups = [];
+		data.edit(edit);
 
 		if (is2D) {
 			sceneEditor.camera2D = true;
 		}
 
-		var scriptElem = element.find(".fx-script");
-		scriptEditor = new hide.comp.ScriptEditor(data.scriptCode, null, scriptElem, scriptElem);
+		var fx = Std.downcast(data, hrt.prefab.fx.FX);
 		function onSaveScript() {
-			data.scriptCode = scriptEditor.code;
+			fx.scriptCode = fx.scriptEditor.code;
+			//fx.scriptParser = null;
 			save();
 			skipNextChange = true;
 			modified = false;
 		}
-		scriptEditor.onSave = onSaveScript;
-		fxScriptParser = new hrt.prefab.fx.FXScriptParser();
-		data.scriptCode = scriptEditor.code;
+		fx.scriptEditor.onSave = onSaveScript;
 
 		keys.register("playPause", function() { pauseButton.toggle(!pauseButton.isDown()); });
 
@@ -1699,7 +1696,45 @@ class FXEditor extends FileView {
 		if(ctx != null && ctx.local3d != null) {
 			anim = Std.downcast(ctx.local3d,hrt.prefab.fx.FX.FXAnimation);
 		}
-	
+		// #if !hscript
+		// throw "Requires -lib hscript";
+		// #else
+		var fx = Std.downcast(data, hrt.prefab.fx.FX);
+		// var errorMessage = null;
+		// if( fx.parsedExpr == null && fx.scriptCode != null) {
+		// 	var parser = new hscript.Parser();
+		// 	fx.parsedExpr = try parser.parseString(fx.scriptCode) catch( e : hscript.Expr.Error ) { errorMessage = hscript.Printer.errorToString(e); null; };
+		// }
+		// if( fx.interp == null ) {
+		// 	fx.interp = new hrt.prefab.rfx.Configurator.ConfiguratorInterp();
+		// 	fx.interp.variables.set("get", fx.getPrefab.bind(false));
+		// 	// interp.variables.set("getParts", getParts.bind(r));
+		// 	// interp.variables.set("getOpt", getPrefab.bind(true));
+		// 	fx.interp.variables.set("smooth", fx.smoothValue);
+		// 	fx.interp.variables.set("allowChanges", fx.allowChanges);
+		// }
+		// for( k => v in fx.values )
+		// 	fx.interp.variables.set(k, v);
+		// if( errorMessage == null )
+		// 	try {
+		// 		fx.interp.execute(fx.parsedExpr);
+		// 	} catch( e : Dynamic ) {
+		// 		errorMessage = Std.string(e);
+		// 	}
+		// if( errorMessage != null ) {
+		// 	#if !editor
+		// 	throw errorMessage;
+		// 	#else
+		// 	if( fx.errorTarget != null ) fx.errorTarget.text(errorMessage);
+		// 	#end
+		// } else {
+		// 	#if editor
+		// 	if( fx.errorTarget != null ) fx.errorTarget.html("&nbsp;");
+		// 	#end
+		// }
+		// #end
+		// fx.interp.restoreVars();
+
 		if(!pauseButton.isDown()) {
 			currentTime += scene.speed * dt;
 			if(timeLineEl != null)
@@ -1751,13 +1786,13 @@ class FXEditor extends FileView {
 			currentVersion = undo.currentID;
 		}
 
-		if( data.scriptCode != scriptEditor.code || !fxScriptParser.firstParse ){
-			modified = fxScriptParser.firstParse;
-			data.scriptCode = scriptEditor.code;
-			anim.script = fxScriptParser.createFXScript(scriptEditor.code, anim);
+		if( data.scriptCode != fx.scriptEditor.code || !fx.scriptParser.firstParse ){
+			modified = fx.scriptParser.firstParse;
+			data.scriptCode = fx.scriptEditor.code;
+			anim.script = fx.scriptParser.createFXScript(fx.scriptEditor.code, anim);
 			anim.script.init();
-			fxScriptParser.generateUI(anim.script, this);
-			fxScriptParser.firstParse = true;
+			//fx.scriptParser.generateUI(anim.script, this);
+			fx.scriptParser.firstParse = true;
 		}
 	}
 
