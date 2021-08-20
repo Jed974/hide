@@ -193,7 +193,9 @@ private class FXSceneEditor extends hide.comp.SceneEditor {
 							PBR: {
 								mode: "BeforeTonemapping",
 								blend: "Alpha",
-								shadows: false
+								shadows: false,
+								culling: "Back",
+								colorMask: 0xff
 							}
 						}
 						if(onMake != null) onMake(p);
@@ -337,7 +339,7 @@ class FXEditor extends FileView {
 						<div class="flex vertical">
 							<div class="hide-toolbar" style="zoom: 80%">
 								<div class="button collapse-btn" title="Collapse all">
-									<div class="icon fa fa-reply-all"></div>
+									<div class="icon ico ico-reply-all"></div>
 								</div>
 							</div>
 							<div class="hide-scenetree"></div>
@@ -914,7 +916,7 @@ class FXEditor extends FileView {
 			<div class="track-header">
 				<div class="track-prop">
 					<label>${upperCase(trackName)}</label>
-					<div class="track-toggle"><div class="icon fa"></div></div>
+					<div class="track-toggle"><div class="icon ico"></div></div>
 				</div>
 				<div class="dopesheet"></div>
 			</div>
@@ -934,9 +936,9 @@ class FXEditor extends FileView {
 		function updateExpanded() {
 			var icon = trackToggle.find(".icon");
 			if(expand)
-				icon.removeClass("fa-angle-right").addClass("fa-angle-down");
+				icon.removeClass("ico-angle-right").addClass("ico-angle-down");
 			else
-				icon.removeClass("fa-angle-down").addClass("fa-angle-right");
+				icon.removeClass("ico-angle-down").addClass("ico-angle-right");
 			curvesContainer.toggleClass("hidden", !expand);
 			for(c in trackEdits)
 				c.refresh();
@@ -1214,7 +1216,7 @@ class FXEditor extends FileView {
 		for(event in events) {
 			var info = event.getDisplayInfo(sceneEditor.curEdit);
 			var evtEl = new Element('<div class="event">
-				<i class="icon fa fa-play-circle"></i><label></label>
+				<i class="icon ico ico-play-circle"></i><label></label>
 			</div>').appendTo(eventsEl);
 			items.push({el: evtEl, event: event });
 
@@ -1307,7 +1309,7 @@ class FXEditor extends FileView {
 		for(sec in sections) {
 			var objPanel = new Element('<div>
 				<div class="tracks-header">
-					<label class="name">${upperCase(sec.elt.name)}</label> <div class="addtrack fa fa-plus-circle"></div>
+					<label class="name">${upperCase(sec.elt.name)}</label> <div class="addtrack ico ico-plus-circle"></div>
 					<label class="abspath">${sec.elt.getAbsPath(true)}</label>
 				</div>
 				<div class="tracks"></div>
@@ -1697,6 +1699,7 @@ class FXEditor extends FileView {
 		if(ctx != null && ctx.local3d != null) {
 			anim = Std.downcast(ctx.local3d,hrt.prefab.fx.FX.FXAnimation);
 		}
+	
 		if(!pauseButton.isDown()) {
 			currentTime += scene.speed * dt;
 			if(timeLineEl != null)
@@ -1716,15 +1719,21 @@ class FXEditor extends FileView {
 
 		if(anim != null) {
 			anim.setTime(currentTime);
-		}
 
-		if(statusText != null) {
-			var lines : Array<String> = [
-				'Time: ${Math.round(currentTime*1000)} ms',
-				'Scene objects: ${scene.s3d.getObjectsCount()}',
-				'Drawcalls: ${h3d.Engine.getCurrent().drawCalls}',
-			];
-			statusText.text = lines.join("\n");
+			var emitters = anim.findAll(o -> Std.downcast(o, hrt.prefab.fx.Emitter.EmitterObject));
+			var totalParts = 0;
+			for(e in emitters)
+				totalParts += @:privateAccess e.numInstances;
+
+			if(statusText != null) {
+				var lines : Array<String> = [
+					'Time: ${Math.round(currentTime*1000)} ms',
+					'Scene objects: ${scene.s3d.getObjectsCount()}',
+					'Drawcalls: ${h3d.Engine.getCurrent().drawCalls}',
+					'Particles: $totalParts',
+				];
+				statusText.text = lines.join("\n");
+			}
 		}
 
 		var cam = scene.s3d.camera;

@@ -185,6 +185,7 @@ private class ParticleInstance  {
 	public var startFrame : Int;
 	public var speedAccumulation = new h3d.Vector();
 	public var colorMult : h3d.Vector;
+	public var distToCam = 0.0;
 
 	public var orientation = new h3d.Quat();
 
@@ -462,6 +463,8 @@ class EmitterObject extends h3d.scene.Object {
 	// LIFE
 	public var lifeTime = 2.0;
 	public var lifeTimeRand = 0.0;
+	public var speedFactor = 1.0;
+	public var warmUpTime = 0.0;
 	// EMIT PARAMS
 	public var emitOrientation : Orientation = Forward;
 	public var simulationSpace : SimulationSpace = Local;
@@ -472,6 +475,7 @@ class EmitterObject extends h3d.scene.Object {
 	public var emitDuration : Float = 1.0;
 	public var emitRate : Value;
 	public var maxCount = 20;
+	public var enableSort = true;
 	// EMIT SHAPE
 	public var emitShape : EmitShape = Cylinder;
 	public var emitAngle : Float = 0.0;
@@ -767,10 +771,8 @@ class EmitterObject extends h3d.scene.Object {
 			// Should we do this manually here or make a recursive makeInstance on the template?
 			var materials = particleTemplate.getAll(hrt.prefab.Material);
 			for(mat in materials) {
-				if(mat.enabled) {
+				if(mat.enabled)
 					mat.makeInstance(template);
-					template.shared.contexts.remove(mat);
-				}
 			}
 
 			// Setup shaders
@@ -779,7 +781,6 @@ class EmitterObject extends h3d.scene.Object {
 			for( shader in shaders ) {
 				if( !shader.enabled ) continue;
 				var shCtx = shader.makeInstance(template);
-				template.shared.contexts.remove(shader);
 				if( shCtx == null ) continue;
 				hrt.prefab.fx.BaseFX.getShaderAnims(template, shader, shaderAnims);
 			}
@@ -794,6 +795,7 @@ class EmitterObject extends h3d.scene.Object {
 				animatedTextureShader = new h3d.shader.AnimatedTexture(tex, frameDivisionX, frameDivisionY, frameCount, frameCount * animationSpeed / lifeTime);
 				animatedTextureShader.startTime = startTime;
 				animatedTextureShader.loop = animationLoop;
+				animatedTextureShader.setPriority(1);
 				mesh.material.mainPass.addShader(animatedTextureShader);
 			}
 
@@ -806,17 +808,12 @@ class EmitterObject extends h3d.scene.Object {
 				batch = new h3d.scene.MeshBatch(meshPrim, mesh.material, this);
 				batch.name = "batch";
 			}
-
-			template.shared.contexts.remove(particleTemplate);
 			template.local3d.remove();
 		}
 	}
 
-	static var camPosTmp : h3d.Vector;
-	static var p1PosTmp = new h3d.Vector();
-	static var p2PosTmp = new h3d.Vector();
 	static function sortZ( p1 : ParticleInstance, p2 : ParticleInstance ) : Int {
-		return Std.int(camPosTmp.distanceSq(p2.absPos.getPosition(p1PosTmp)) - camPosTmp.distanceSq(p1.absPos.getPosition(p2PosTmp)));
+		return p1.distToCam < p2.distToCam ? 1 : -1;
 	}
 
 	function tick( dt : Float, full=true) {
@@ -910,7 +907,6 @@ class EmitterObject extends h3d.scene.Object {
 		if( full && batch != null ) {
 			batch.begin(hxd.Math.nextPOT(maxCount));
 			if( particleVisibility ) {
-				camPosTmp = getScene().camera.pos;
 				particles = haxe.ds.ListSort.sortSingleLinked(particles, sortZ);
 				var p = particles;
 				var i = 0;
@@ -939,9 +935,10 @@ class EmitterObject extends h3d.scene.Object {
 	function updateParticles(dt: Float) {
 		var p = particles;
 		var prev : ParticleInstance = null;
+		var camPos = getScene().camera.pos;
 		while(p != null) {
 			var next = p.next;
-			if(p.life > lifeTime) {
+			if(p.life > p.lifeTime) {
 				if(prev != null)
 					prev.next = next;
 				else
@@ -967,6 +964,8 @@ class EmitterObject extends h3d.scene.Object {
 			}
 			else {
 				p.update(dt);
+				if(p.distToCam < 0 || enableSort)
+					p.distToCam = camPos.distanceSq(p.absPos.getPosition());
 				prev = p;
 			}
 			p = next;
@@ -1001,6 +1000,7 @@ class EmitterObject extends h3d.scene.Object {
 	}
 
 	public function setTime(time: Float) {
+		time = time * speedFactor + warmUpTime;
 		if(time < lastTime || lastTime < 0) {
 			reset();
 		}
@@ -1012,10 +1012,17 @@ class EmitterObject extends h3d.scene.Object {
 			curTime = time - maxCatchupWindow;
 			emitCount = hxd.Math.ceil(evaluator.getSum(emitRate, curTime));
 			catchupTime = maxCatchupWindow;
+
+			// Force sort after long time invisible
+			var p = particles;
+			while(p != null) {
+				p.distToCam = -1;
+				p = p.next;
+			}
 		}
 		#end
 
-		var catchupTickRate = hxd.Timer.wantedFPS / catchupSpeed;
+		var catchupTickRate = hxd.Timer.wantedFPS * speedFactor / catchupSpeed;
 		var numTicks = hxd.Math.ceil(catchupTickRate * catchupTime);
 		for(i in 0...numTicks) {
 			tick(catchupTime / numTicks, i == (numTicks - 1));
@@ -1046,8 +1053,10 @@ class Emitter extends Object3D {
 		// RANDOM
 		{ name: "seedGroup", t: PInt(0, 100), def: 0, groupName : "Random", disp: "Seed"},
 		// LIFE
-		{ name: "lifeTime", t: PFloat(0, 10), def: 1.0, groupName : "Life" },
-		{ name: "lifeTimeRand", t: PFloat(0, 1), def: 0.0, groupName : "Life" },
+		{ name: "lifeTime", t: PFloat(0, 10), def: 1.0, groupName : "Time" },
+		{ name: "lifeTimeRand", t: PFloat(0, 1), def: 0.0, groupName : "Time" },
+		{ name: "speedFactor", disp: "Speed Factor", t: PFloat(0, 1), def: 1.0, groupName : "Time" },
+		{ name: "warmUpTime", disp: "Warm Up", t: PFloat(0, 1), def: 0.0, groupName : "Time" },
 		// EMIT PARAMS
 		{ name: "emitType", t: PEnum(EmitType), def: EmitType.Infinity, disp: "Type", groupName : "Emit Params"  },
 		{ name: "emitDuration", t: PFloat(0, 10.0), disp: "Duration", def : 1.0, groupName : "Emit Params" },
@@ -1058,6 +1067,7 @@ class Emitter extends Object3D {
 		{ name: "simulationSpace", t: PEnum(SimulationSpace), def: SimulationSpace.Local, disp: "Simulation Space", groupName : "Emit Params" },
 		{ name: "emitOrientation", t: PEnum(Orientation), def: Orientation.Forward, disp: "Orientation", groupName : "Emit Params" },
 		{ name: "maxCount", t: PInt(0, 100), def: 20, groupName : "Emit Params" },
+		{ name: "enableSort", t: PBool, def: true, disp: "Enable Sort", groupName : "Emit Params" },
 		// EMIT SHAPE
 		{ name: "emitShape", t: PEnum(EmitShape), def: EmitShape.Sphere, disp: "Shape", groupName : "Emit Shape" },
 		{ name: "emitAngle", t: PFloat(0, 360.0), disp: "Angle", groupName : "Emit Shape" },
@@ -1305,6 +1315,8 @@ class Emitter extends Object3D {
 		// LIFE
 		emitterObj.lifeTime 			= 	getParamVal("lifeTime");
 		emitterObj.lifeTimeRand 		= 	getParamVal("lifeTimeRand");
+		emitterObj.speedFactor 			= 	getParamVal("speedFactor");
+		emitterObj.warmUpTime 			= 	getParamVal("warmUpTime");
 		// EMIT PARAMS
 		emitterObj.emitType 			= 	getParamVal("emitType");
 		emitterObj.burstCount 			= 	getParamVal("burstCount");
@@ -1314,6 +1326,7 @@ class Emitter extends Object3D {
 		emitterObj.simulationSpace 		= 	getParamVal("simulationSpace");
 		emitterObj.emitOrientation 		= 	getParamVal("emitOrientation");
 		emitterObj.maxCount 			= 	getParamVal("maxCount");
+		emitterObj.enableSort 			= 	getParamVal("enableSort");
 		emitterObj.emitRate 			= 	makeParam(this, "emitRate");
 		emitterObj.emitShape 			= 	getParamVal("emitShape");
 		// EMIT SHAPE

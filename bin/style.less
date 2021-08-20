@@ -281,20 +281,67 @@ input[type=checkbox] {
 		opacity : 1;
 	}
 
-	&.vertical .drag_handle {
+	&.vertical {
 		width : 100%;
-		height : 15px;
-		position : absolute;
-		top : -5px;
-		cursor : ns-resize;
+		height : 5px;
+		.drag-handle {
+			width : 100%;
+			height : 15px;
+			position : absolute;
+			top : -5px;
+			cursor : ns-resize;
+		}
 	}
 
-	&.horizontal .drag_handle {
-		width : 15px;
+	&.horizontal {
+		width : 5px;
 		height : 100%;
-		position : absolute;
-		left  : -5px;
-		cursor : ew-resize;
+		.drag-handle {
+			width : 15px;
+			height : 100%;
+			position : absolute;
+			left  : -5px;
+			cursor : ew-resize;
+		}
+	}
+}
+
+.detached {
+
+	.layout-controls:not(& .layout-controls) {
+		display : none;
+	}
+
+	&.detachable-panel {
+		position: fixed;
+		bottom : 20px;
+		left: 20%;
+		right: 620px;
+		z-index: @popup-layer;
+
+		.splitter {
+			z-index : @popup-layer + 10;
+			position : absolute;
+
+			&.handle-right {
+				right : -5px;
+			}
+			&.handle-left {
+				left : -5px;
+			}
+			&.handle-top {
+				height : 15px;
+				top : -15px;
+
+				.drag-handle {
+					cursor : move;
+					top : 0px;
+				}
+			}
+			&.handle-bottom {
+				bottom : -5px;
+			}
+		}
 	}
 }
 
@@ -443,7 +490,8 @@ input[type=checkbox] {
 		text-align: center;
 		text-shadow: 1px 2px 2px black;
 		>.icon {
-			vertical-align: center;
+			vertical-align: middle;
+			margin-bottom: 2px;
 		}
 	}
 
@@ -468,9 +516,6 @@ input[type=checkbox] {
 		cursor : pointer;
 		font-size: 16px;
 		vertical-align: middle;
-		>.icon {
-			vertical-align: center;
-		}
 		&:hover {
 			color : white;
 			border-color : white;
@@ -812,7 +857,7 @@ input[type=checkbox] {
 	.group {
 		>.title {
 			text-align : center;
-			background-color : rgb(30,30,30);
+			background-color : #151515;
 			cursor:pointer;
 			user-select:none;
 			padding : 1px;
@@ -863,12 +908,7 @@ input[type=checkbox] {
 
 	.cdb-large {
 		.cdb-obj-editor {
-			position: fixed;
-			bottom : 20px;
 			max-height: 800px;
-			left: 20%;
-			right: 620px;
-			z-index: @popup-layer;
 			overflow: auto;
 			padding: 2px;
 			background: #111;
@@ -878,7 +918,6 @@ input[type=checkbox] {
 			opacity: 1;
 		}
 	}
-
 }
 
 /* Curve editor */
@@ -2160,6 +2199,14 @@ div.sp-container {
 		float: right;
 		font-size: 8pt;
 		color: #8d8d8d;
+		&:before {
+			content: '\a0'; // '&nbsp;'
+		}
+	}
+	&.context-menu-disabled {
+		.contextmenu-keys {
+			color: #c9c9c9;
+		}
 	}
 
 	.tag-disp-expand {

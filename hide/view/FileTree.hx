@@ -93,7 +93,7 @@ class FileTree extends FileView {
 				content.push({
 					value : id,
 					text : c,
-					icon : "fa fa-" + (isDir ? "folder" : (ext != null && ext.options.icon != null ? ext.options.icon : "file-text")),
+					icon : "ico ico-" + (isDir ? "folder" : (ext != null && ext.options.icon != null ? ext.options.icon : "file-text")),
 					children : isDir,
 				});
 			}
@@ -111,9 +111,17 @@ class FileTree extends FileView {
 			e.preventDefault();
 			var allowedNew : Array<String> = config.get("filetree.allowednew");
 			function allowed( ext : String ) return allowedNew.indexOf(ext) >= 0 || allowedNew.indexOf("*") >= 0;
-			var newMenu = [for( e in EXTENSIONS ) if( e.options.createNew != null && Lambda.exists(e.extensions, allowed) ) { label : e.options.createNew, click : createNew.bind(current, e) }];
+			var newMenu = [for( e in EXTENSIONS ) if( e.options.createNew != null && Lambda.exists(e.extensions, allowed) ) {
+				label : e.options.createNew,
+				click : createNew.bind(current, e),
+				icon : e.options.icon,
+			}];
 			if( allowed("dir") )
-				newMenu.unshift({ label : "Directory", click : createNew.bind(current, { options : { createNew : "Directory" }, extensions : null, component : null }) });
+				newMenu.unshift({
+					label : "Directory",
+					click : createNew.bind(current, { options : { createNew : "Directory" }, extensions : null, component : null }),
+					icon : "folder",
+				});
 			new hide.comp.ContextMenu([
 				{ label : "New..", menu:newMenu },
 				{ label : "", isSeparator: true },
@@ -141,7 +149,12 @@ class FileTree extends FileView {
 						onRename(current, "/"+dir+"/"+current.split("/").pop());
 					});
 				}},
-				{ label : "Delete", enabled : current != null, click : function() if( js.Browser.window.confirm("Delete " + current + "?") ) { onDeleteFile(current); tree.refresh(); } },
+				{ label : "Delete", enabled : current != null, click : function() {
+					if( js.Browser.window.confirm("Delete " + current + "?") ) {
+						onDeleteFile(current);
+						tree.refresh();
+					}
+				}},
 			]);
 		});
 		tree.onDblClick = onOpenFile;
@@ -331,9 +344,13 @@ class FileTree extends FileView {
 		return true;
 	}
 
-	function onExploreFile( path : String ) {
-		var fullPath = sys.FileSystem.absolutePath(getFilePath(path));
+	public static function exploreFile(path : String) {
+		var fullPath = sys.FileSystem.absolutePath(path);
 		Sys.command("explorer.exe /select," + fullPath);
+	}
+
+	function onExploreFile( path : String ) {
+		exploreFile(getFilePath(path));
 	}
 
 	function onCloneFile( path : String ) {
@@ -393,6 +410,19 @@ class FileTree extends FileView {
 		ide.openFile(fullPath);
 		tree.closeFilter();
 		return true;
+	}
+
+	public function revealNode( path : String ) {
+		function doreveal() {
+			tree.revealNode(path);
+			tree.setSelection([path]);
+		}
+		if( tree.async ) {
+			tree.async = false;
+			tree.refresh(doreveal);
+		}
+		else
+			doreveal();
 	}
 
 	function createNew( basePath : String, ext : ExtensionDesc ) {

@@ -169,6 +169,8 @@ class SceneEditor {
 	var sceneData : PrefabElement;
 	var lastRenderProps : hrt.prefab.RenderProps;
 
+	var focusedSinceSelect = false;
+
 	public function new(view, data) {
 		ide = hide.Ide.inst;
 		this.view = view;
@@ -235,6 +237,7 @@ class SceneEditor {
 			}
 		});
 		view.keys.register("sceneeditor.editPivot", editPivot);
+		view.keys.register("sceneeditor.gatherToMouse", gatherToMouse);
 
 		// Load display state
 		{
@@ -324,7 +327,8 @@ class SceneEditor {
 			}
 			if(!bnds.isEmpty()) {
 				var s = bnds.toSphere();
-				cameraController.set(s.r * 4.0, null, null, s.getCenter());
+				var r = focusedSinceSelect ? s.r * 4.0 : null;
+				cameraController.set(r, null, null, s.getCenter());
 			}
 			else {
 				centroid.scale3(1.0 / curEdit.rootObjects.length);
@@ -333,6 +337,7 @@ class SceneEditor {
 		}
 		for(obj in curEdit.rootElements)
 			tree.revealNode(obj);
+		focusedSinceSelect = true;
 	}
 
 	function getAvailableTags(p: PrefabElement) : Array<{id: String, color: String}>{
@@ -450,7 +455,7 @@ class SceneEditor {
 			var r : hide.comp.IconTree.IconTreeItem<PrefabElement> = {
 				value : o,
 				text : o.name,
-				icon : "fa fa-"+icon,
+				icon : "ico ico-"+icon,
 				children : o.children.length > 0 || (ref != null && @:privateAccess ref.editMode),
 				state: state
 			};
@@ -841,6 +846,13 @@ class SceneEditor {
 		});
 		var menuItems : Array<hide.comp.ContextMenu.ContextMenuItem> = [
 			{ label : "New...", menu : newItems },
+			{ isSeparator : true, label : "" },
+			{
+				label : "Gather here",
+				click : gatherToMouse,
+				enabled : (curEdit.rootElements.length > 0),
+				keys : view.config.get("key.sceneeditor.gatherToMouse"),
+			},
 		];
 		new hide.comp.ContextMenu(menuItems);
 	}
@@ -1195,7 +1207,7 @@ class SceneEditor {
 
 			var visTog = el.find(".visibility-toggle").first();
 			if(visTog.length == 0) {
-				visTog = new Element('<i class="fa fa-eye visibility-toggle" title = "Hide (${view.config.get("key.sceneeditor.hide")})"/>').insertAfter(el.find("a.jstree-anchor").first());
+				visTog = new Element('<i class="ico ico-eye visibility-toggle" title = "Hide (${view.config.get("key.sceneeditor.hide")})"/>').insertAfter(el.find("a.jstree-anchor").first());
 				visTog.click(function(e) {
 					if(curEdit.elements.indexOf(obj3d) >= 0)
 						setVisible(curEdit.elements, isHidden(obj3d));
@@ -1212,7 +1224,7 @@ class SceneEditor {
 			}
 			var lockTog = el.find(".lock-toggle").first();
 			if(lockTog.length == 0) {
-				lockTog = new Element('<i class="fa fa-lock lock-toggle"/>').insertAfter(el.find("a.jstree-anchor").first());
+				lockTog = new Element('<i class="ico ico-lock lock-toggle"/>').insertAfter(el.find("a.jstree-anchor").first());
 				lockTog.click(function(e) {
 					if(curEdit.elements.indexOf(obj3d) >= 0)
 						setLock(curEdit.elements, !obj3d.locked);
@@ -1402,7 +1414,7 @@ class SceneEditor {
 			<div class="group" name="CDB">
 				<dl>
 				<dt>
-					<div class="btn-cdb-large fa fa-file-text"></div>
+					<div class="btn-cdb-large ico ico-file-text"></div>
 					Type
 				</dt>
 				<dd><select><option value="">- No props -</option></select></dd>
@@ -1410,12 +1422,16 @@ class SceneEditor {
 		');
 
 		var cdbLarge = @:privateAccess view.getDisplayState("cdbLarge");
+		var detachable = new DetachablePanel();
+		detachable.saveDisplayKey = "detachedCdb";
 		group.find(".btn-cdb-large").click((_) -> {
 			cdbLarge = !cdbLarge;
 			@:privateAccess view.saveDisplayState("cdbLarge", cdbLarge);
 			group.toggleClass("cdb-large", cdbLarge);
+			detachable.setDetached(cdbLarge);
 		});
 		group.toggleClass("cdb-large", cdbLarge == true);
+		detachable.setDetached(cdbLarge == true);
 
 		var select = group.find("select");
 		for(t in types) {
@@ -1451,7 +1467,8 @@ class SceneEditor {
 			var ctx = context.shared.getContexts(e)[0];
 			if( ctx != null )
 				fileRef = ctx.shared.currentPath;
-			var editor = new hide.comp.cdb.ObjEditor(curType, view.config, e.props, fileRef, props);
+			detachable.element.appendTo(props);
+			var editor = new hide.comp.cdb.ObjEditor(curType, view.config, e.props, fileRef, detachable.element);
 			editor.undo = properties.undo;
 			editor.fileView = view;
 			editor.onChange = function(pname) {
@@ -1531,8 +1548,9 @@ class SceneEditor {
 			setupGizmo();
 		}
 
+		var prev : Array<PrefabElement> = null;
 		if( curEdit != null && mode.match(Default|NoTree) ) {
-			var prev = curEdit.rootElements.copy();
+			prev = curEdit.rootElements.copy();
 			undo.change(Custom(function(u) {
 				if(u) impl(prev,NoHistory);
 				else impl(elts,NoHistory);
@@ -1540,6 +1558,16 @@ class SceneEditor {
 		}
 
 		impl(elts,mode);
+		if( prev == null || curEdit.rootElements.length != prev.length ) {
+			focusedSinceSelect = false;
+			return;
+		}
+		for( i in 0...curEdit.rootElements.length ) {
+			if( curEdit.rootElements[i] != prev[i] ) {
+				focusedSinceSelect = false;
+				return;
+			}
+		}
 	}
 
 	function hasBeenRemoved( e : hrt.prefab.Prefab ) {
@@ -1661,6 +1689,54 @@ class SceneEditor {
 				}
 				refresh(Partial);
 			}
+		}));
+	}
+
+	function gatherToMouse() {
+		var prevParent = sceneData;
+		var localMat = getPickTransform(prevParent);
+		if( localMat == null ) return;
+
+		var objects3d = [for(o in curEdit.rootElements) {
+			var obj3d = o.to(hrt.prefab.Object3D);
+			if( obj3d != null && !obj3d.locked )
+				obj3d;
+		}];
+		if( objects3d.length == 0 ) return;
+
+		var sceneObjs = [for(o in objects3d) getContext(o).local3d];
+		var prevState = [for(o in objects3d) o.saveTransform()];
+
+		for( obj3d in objects3d ) {
+			if( obj3d.parent != prevParent ) {
+				prevParent = obj3d.parent;
+				localMat = getPickTransform(prevParent);
+			}
+			if( localMat == null ) continue;
+			obj3d.x = hxd.Math.round(localMat.tx * 10) / 10;
+			obj3d.y = hxd.Math.round(localMat.ty * 10) / 10;
+			obj3d.z = hxd.Math.floor(localMat.tz * 10) / 10;
+			obj3d.updateInstance(getContext(obj3d));
+		}
+		var newState = [for(o in objects3d) o.saveTransform()];
+		refreshProps();
+		undo.change(Custom(function(undo) {
+			if( undo ) {
+				for(i in 0...objects3d.length) {
+					objects3d[i].loadTransform(prevState[i]);
+					objects3d[i].applyTransform(sceneObjs[i]);
+				}
+				refreshProps();
+			}
+			else {
+				for(i in 0...objects3d.length) {
+					objects3d[i].loadTransform(newState[i]);
+					objects3d[i].applyTransform(sceneObjs[i]);
+				}
+				refreshProps();
+			}
+			for(o in objects3d)
+				o.updateInstance(getContext(o));
 		}));
 	}
 
@@ -2296,7 +2372,8 @@ class SceneEditor {
 					});
 				else
 					addElements([make()]);
-			}
+			},
+			icon : pmodel.inf.icon,
 		};
 	}
 

@@ -355,8 +355,8 @@ class Editor extends Component {
 			formulas.evaluateAll(realSheet);
 			endChanges();
 			realSheet.sync();
-			for( l in toRefresh ) {
-				l.refresh();
+			for( c in toRefresh ) {
+				c.refresh(true);
 			}
 			refreshRefs();
 			return;
@@ -439,8 +439,8 @@ class Editor extends Component {
 		if( inserted )
 			refreshAll();
 		else {
-			for( l in toRefresh ) {
-				l.refresh();
+			for( c in toRefresh ) {
+				c.refresh(true);
 			}
 			refreshRefs();
 		}
@@ -795,7 +795,7 @@ class Editor extends Component {
 		}).keyup(function(e) {
 			searchFilter(e.getThis().val());
 		});
-		new Element("<i>").addClass("fa fa-times-circle").appendTo(searchBox).click(function(_) {
+		new Element("<i>").addClass("ico ico-times-circle").appendTo(searchBox).click(function(_) {
 			searchFilter(null);
 			searchBox.toggle();
 			var c = cursor.save();
